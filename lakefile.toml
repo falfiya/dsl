@@ -1,0 +1,10 @@
+name = "dsl"
+version = "0.1.0"
+defaultTargets = ["dsl"]
+
+[[lean_lib]]
+name = "dsl"
+
+[[lean_exe]]
+name = "dsl"
+root = "Main"
