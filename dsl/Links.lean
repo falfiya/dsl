@@ -2,26 +2,39 @@ import dsl.Runtime
 
 namespace Synchronous
 
-structure FairLossLink.Deliver {Message : Type} where
+variable {𝓜 : Type}
+
+structure FairLossLink.Deliver where
    src : Process
    dest : Process
-   msg : Message
+   msg : 𝓜
    sentAt : Time
 
+def FairLossLink.TryDeliver (pred : @Deliver 𝓜 -> Prop) : Type
+   := Option {d // pred d}
+
+structure FairLossLink.TryDeliverStream (pred : @Deliver 𝓜 -> Prop) where
+   Td := TryDeliver pred
+   stream : Stream' <| Td
+   uniqueTimes :
+      ∀ n, ¬∃ m, n != m ∧ 
+      -> 
+
 structure FairLossLink where
-   send : {Message : Type}
+   send : {_ : Unit}
       -> (src : Process)
       -> (dest : Process)
-      -> (msg : Message)
+      -> (msg : 𝓜)
       -> (sendAt : Time)
-      -> Option ({d : FairLossLink.Deliver // d = ⟨src, dest, msg, sendAt⟩})
-   selfSend : ∀ {Message : Type} (p : Process) (msg : Message) (t : Time),
+      -> FairLossLink.TryDeliver (· = ⟨src, dest, msg, sendAt⟩)
+   selfSend : ∀ (p : Process) (msg : 𝓜) (t : Time),
       send p p msg t = some ⟨⟨p, p, msg, t⟩, by rfl⟩
    fairLoss : {Message : Type}
       -> (src : Process)
       -> (dest : Process)
       -> (msg : Message)
       -> (sendAt : Time)
+      -- Add proof that all of the options have different times
       -> Stream' (Option {d : FairLossLink.Deliver // d.src = src ∧ d.dest = dest ∧ d.msg = msg ∧ d.sentAt ≥ sendAt})
       -> Stream' {d : FairLossLink.Deliver // d.src = src ∧ d.dest = dest ∧ d.msg = msg ∧ d.sentAt ≥ sendAt}
    -- This one is obvious and follows from fairLoss
@@ -57,19 +70,22 @@ structure StubbornLink where
 def FairLossLink.infiniteSend
    (fll : FairLossLink) (src : Process) (dest : Process) (msg : Message) (sendAt : Time)
    : Stream' (Option {d : FairLossLink.Deliver // d.src = src ∧ d.dest = dest ∧ d.msg = msg ∧ d.sentAt ≥ sendAt})
-   := (Time.all.add sendAt).map (by
-      intro ⟨sendAt', p_sendAt'⟩
-      exact (fll.send src dest msg sendAt').map (by
-         intro ⟨delivery, p_delivery⟩
-         constructor
-         case val => exact delivery
-         simp
-         refine ⟨?_, ?_, ?_, ?_⟩
-         · rw [p_delivery]
-         · rw [p_delivery]
-         · rw [p_delivery]
-         · rw [p_delivery]; simp; exact p_sendAt'
-      ))
+   :=
+      (Time.all.add sendAt).map fun ⟨sendAt', p_sendAt'⟩ =>
+         (fll.send src dest msg sendAt').map (by
+            intro ⟨delivery, p_delivery⟩
+            constructor
+            case val => exact delivery
+            refine ⟨?_, ?_, ?_, ?_⟩
+            · rw [p_delivery]
+            · rw [p_delivery]
+            · rw [p_delivery]
+            · {
+               rw [p_delivery]
+               simp
+               exact p_sendAt'
+            }
+         )
 
 def StubbornLink.fromFLL (fll : FairLossLink) : StubbornLink := {
    fll := fll,
@@ -78,8 +94,8 @@ def StubbornLink.fromFLL (fll : FairLossLink) : StubbornLink := {
       : Stream' {d : StubbornLink.Deliver // d.src = src ∧ d.dest = dest ∧ d.msg = msg ∧ d.sentAt ≥ sendAt}
       := by
          let infinteSends := fll.infiniteSend src dest msg sendAt
-         let fairLoss := fll.fairLoss src dest msg sendAt infinteSends
-         exact fairLoss.map (by
+         let unfairLoss := fll.fairLoss src dest msg sendAt infinteSends
+         exact unfairLoss.map (by
             intro ⟨fld, ⟨p_fldSrc, p_fldDest, p_fldMsg, p_fldSentAt⟩⟩
             constructor
             -- first construct Stubborn Delivery from Fair Loss Delivery

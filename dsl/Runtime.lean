@@ -14,14 +14,28 @@ def Stream'.slice (start length : Nat) (s : Stream' α) : FiniteStream α :=
    ⟨s, start, length⟩
 
 abbrev Time := Nat
-def Time.Stream : Type := Stream' Time
-def Time.all : Stream := fun n => n
+structure Time.Stream where
+   start : Time
+   stream : Stream' {t : Time // t ≥ start}
+   monotonic : ∀n, (stream n).val < (stream (n + 1)).val
 
-instance Time.inhabited : Inhabited Time := Inhabited.mk 0
-instance Time.Stream.inhabited : Inhabited Time.Stream := Inhabited.mk Time.all
+def Time.all : Stream := {
+   start := 0
+   stream n := ⟨n, by simp⟩
+   monotonic n := by simp
+}
 
-def Time.Stream.add (s : Stream) (offset : Time) : Stream' {t : Time // t ≥ offset}
-   := fun n => ⟨offset + s n, Nat.le_add_right offset (s n)⟩
+def Time.Stream.add (s : Stream) (offset : Time) : Stream := {
+   start := offset + s.start
+   stream n := let ⟨n', p_n'⟩ := s.stream n;
+   ⟨
+      offset + n',
+      Nat.add_le_add_left p_n' offset
+   ⟩
+   monotonic n := by
+      simp
+      exact s.monotonic n
+}
 
 abbrev NoProof := False -> Prop
 instance NoProof.inhabited : Inhabited NoProof := Inhabited.mk (
@@ -38,7 +52,6 @@ structure Process where
    pCorrct : isCorrect = true -> ∀t, aliveAt t = true
 
 namespace Synchronous
-
 
 end Synchronous
 
