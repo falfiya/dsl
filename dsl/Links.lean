@@ -4,6 +4,42 @@ namespace Synchronous
 
 variable {𝓜 : Type}
 
+namespace FairLoss
+   inductive Event where
+      | nothing
+      | send (src : Process) (dest : Process) (msg : 𝓜)
+      | deliver (src : Process) (dest : Process) (msg : 𝓜)
+end FairLoss
+
+structure FairLoss where
+   es : Stream' <| @FairLoss.Event 𝓜
+   selfSend : {_ : Unit}
+      -> (p : Process)
+      -> (msg : 𝓜)
+      -> (∃ t, es t = .send p p msg)
+      -> (∃ t' > t, es t' = .deliver p p msg)
+   fairLoss : {_ : Unit}
+      -> (src : Process)
+      -> (dest : Process)
+      -> (msg : 𝓜)
+      -> (startAt : Time)
+      -> (∀ T ≥ startAt, ∃ t ≥ T, es t = .send src dest msg)
+      -> (∀ T ≥ startAt, ∃ t ≥ T, es t = .deliver src dest msg)
+   finiteDuplication : {_ : Unit}
+      -> (src dest : Process)
+      -> (msg : 𝓜)
+      -> (∃ T1, ∀ t < T1, es t ≠ .send src dest msg)
+      -> (∃ T2, ∀ t < T2, es t ≠ .deliver src dest msg)
+   noCreation : {_ : Unit}
+      -> (src dest : Process)
+      -> (msg : 𝓜)
+      -> (t : Time)
+      -> (es t = .deliver src dest msg)
+      -> (∃ t' < t, es t = .send src dest msg)
+
+structure FairLossEventStream where
+   
+
 structure FairLossLink.Deliver where
    src : Process
    dest : Process
@@ -27,8 +63,6 @@ structure FairLossLink where
       -> (msg : 𝓜)
       -> (sendAt : Time)
       -> FairLossLink.TryDeliver (· = ⟨src, dest, msg, sendAt⟩)
-   selfSend : ∀ (p : Process) (msg : 𝓜) (t : Time),
-      send p p msg t = some ⟨⟨p, p, msg, t⟩, by rfl⟩
    fairLoss : {Message : Type}
       -> (src : Process)
       -> (dest : Process)
